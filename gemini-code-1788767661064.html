@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>藻酸盐倒模同步操作助手</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #0f172a;
+      min-height: 100vh;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #334155;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #38bdf8;
+      margin-bottom: 16px;
+    }
+    .param-item { margin-bottom: 16px; }
+    .label-group {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+    .val-text { color: #38bdf8; font-weight: bold; }
+    select, input[type="range"] { width: 100%; }
+    select {
+      background: #334155;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #fff;
+      border: none;
+      margin-top: 6px;
+    }
+    input[type="range"] { accent-color: #007aff; }
+    button {
+      width: 100%;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-sim {
+      background: #334155;
+      color: #38bdf8;
+      font-size: 14px;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    .sim-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .sim-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #334155;
+    }
+    .highlight { color: #4ade80; font-weight: bold; }
+    .btn-start-large {
+      background: #2563eb;
+      color: #fff;
+      font-size: 22px;
+      font-weight: bold;
+      padding: 16px 0;
+      border-radius: 12px;
+      margin-top: 20px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+    }
+    .timer-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #090d16;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 999;
+      padding: 40px 20px;
+    }
+    .stage-name { color: #38bdf8; font-size: 32px; font-weight: bold; text-align: center; }
+    .big-countdown {
+      color: #f43f5e;
+      font-size: clamp(80px, 20vw, 200px);
+      font-weight: 900;
+      line-height: 1;
+      text-shadow: 0 0 25px rgba(244, 63, 94, 0.35);
+      text-align: center;
+    }
+    .voice-tip { color: #facc15; font-size: 20px; text-align: center; line-height: 1.5; }
+    .btn-cancel { background: #dc2626; color: #fff; width: 180px; padding: 12px; border-radius: 25px; font-size: 16px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="card-title">1. 环境与配比参数调节</div>
+
+    <div class="param-item">
+      <div class="label-group"><span>藻酸盐粉末类型</span></div>
+      <select id="powderType">
+        <option value="0">快凝型 (Fast Set)</option>
+        <option value="1" selected>普通型 (Normal Set)</option>
+        <option value="2">变色指示型 (Color Change)</option>
+      </select>
+    </div>
+
+    <div class="param-item">
+      <div class="label-group">
+        <span>水粉比系数 (Ratio)</span>
+        <span class="val-text" id="valRatio">1.0x</span>
+      </div>
+      <input type="range" id="ratio" min="0.8" max="1.3" step="0.05" value="1.0" style="accent-color:#ff9500;">
+    </div>
+
+    <div class="param-item">
+      <div class="label-group">
+        <span>环境温度 (Ambient Temp)</span>
+        <span class="val-text" id="valAmbientTemp">25 °C</span>
+      </div>
+      <input type="range" id="ambientTemp" min="10" max="40" value="25" style="accent-color:#00d4ff;">
+    </div>
+
+    <div class="param-item">
+      <div class="label-group">
+        <span>水温 (Water Temp)</span>
+        <span class="val-text" id="valWaterTemp">23 °C</span>
+      </div>
+      <input type="range" id="waterTemp" min="10" max="40" value="23" style="accent-color:#007aff;">
+    </div>
+
+    <div class="param-item">
+      <div class="label-group">
+        <span>环境湿度 (Humidity)</span>
+        <span class="val-text" id="valHumidity">50 %RH</span>
+      </div>
+      <input type="range" id="humidity" min="20" max="100" value="50" style="accent-color:#34c759;">
+    </div>
+
+    <button class="btn-sim" id="btnToggleSim">流程模拟 ▼ 预览时长</button>
+  </div>
+
+  <div class="card hidden" id="simCard">
+    <div class="card-title">2. 各阶段预测时长</div>
+    <div class="sim-list">
+      <div class="sim-item"><span>混料阶段</span><span class="highlight" id="simPremix">0 秒</span></div>
+      <div class="sim-item"><span>调拌阶段</span><span class="highlight" id="simMix">0 秒</span></div>
+      <div class="sim-item"><span>消泡阶段</span><span class="highlight" id="simLoad">0 秒</span></div>
+      <div class="sim-item"><span>固化阶段</span><span class="highlight" id="simSet">0 秒</span></div>
+      <div class="sim-item"><span>建议灌模窗口</span><span class="highlight" id="simPourWindow">0 分钟内</span></div>
+    </div>
+  </div>
+
+  <button class="btn-start-large" id="btnStart">开始操作</button>
+
+  <div class="timer-overlay hidden" id="timerOverlay">
+    <div class="stage-name" id="stageName"></div>
+    <div class="big-countdown" id="timeLeft">0</div>
+    <div class="voice-tip" id="voiceTip"></div>
+    <button class="btn-cancel" id="btnStop">停止 / 重置</button>
+  </div>
+
+  <script>
+    // 基础状态管理
+    const state = {
+      powderIndex: 1,
+      ratio: 1.0,
+      ambientTemp: 25,
+      waterTemp: 23,
+      humidity: 50,
+      showSim: false,
+      timer: null
+    };
+
+    // DOM 元素引用
+    const dom = {
+      powderType: document.getElementById('powderType'),
+      ratio: document.getElementById('ratio'),
+      ambientTemp: document.getElementById('ambientTemp'),
+      waterTemp: document.getElementById('waterTemp'),
+      humidity: document.getElementById('humidity'),
+      valRatio: document.getElementById('valRatio'),
+      valAmbientTemp: document.getElementById('valAmbientTemp'),
+      valWaterTemp: document.getElementById('valWaterTemp'),
+      valHumidity: document.getElementById('valHumidity'),
+      simCard: document.getElementById('simCard'),
+      btnToggleSim: document.getElementById('btnToggleSim'),
+      btnStart: document.getElementById('btnStart'),
+      btnStop: document.getElementById('btnStop'),
+      timerOverlay: document.getElementById('timerOverlay'),
+      stageName: document.getElementById('stageName'),
+      timeLeft: document.getElementById('timeLeft'),
+      voiceTip: document.getElementById('voiceTip')
+    };
+
+    // 事件绑定与同步
+    dom.powderType.addEventListener('change', (e) => state.powderIndex = parseInt(e.target.value));
+    
+    function bindSlider(inputEl, displayEl, unit, key, isFloat = false) {
+      inputEl.addEventListener('input', (e) => {
+        const val = isFloat ? parseFloat(e.target.value) : parseInt(e.target.value);
+        state[key] = val;
+        displayEl.textContent = `${val}${unit}`;
+      });
+    }
+
+    bindSlider(dom.ratio, dom.valRatio, 'x', 'ratio', true);
+    bindSlider(dom.ambientTemp, dom.valAmbientTemp, ' °C', 'ambientTemp');
+    bindSlider(dom.waterTemp, dom.valWaterTemp, ' °C', 'waterTemp');
+    bindSlider(dom.humidity, dom.valHumidity, ' %RH', 'humidity');
+
+    // 计算逻辑
+    function calculatePhases() {
+      const { powderIndex, ratio, ambientTemp, waterTemp, humidity } = state;
+      let basePremix = 15, baseMix = 35, baseLoad = 30, baseSet = 120, basePourMax = 15;
+
+      let waterTempFactor = Math.pow(0.95, waterTemp - 23);
+      let ambientTempFactor = Math.pow(0.97, ambientTemp - 25);
+      let ratioFactor = ratio;
+      let humidityFactor = humidity < 40 ? 0.7 : (humidity > 80 ? 1.2 : 1.0);
+
+      if (powderIndex === 0) {
+        basePremix *= 0.7; baseMix *= 0.7; baseLoad *= 0.7; baseSet *= 0.7;
+      }
+
+      return {
+        premix: Math.round(basePremix * ratioFactor),
+        mix: Math.round(baseMix * waterTempFactor * ratioFactor),
+        load: Math.round(baseLoad * waterTempFactor * ambientTempFactor),
+        set: Math.round(baseSet * ambientTempFactor * ratioFactor),
+        pourWindowMin: Math.round(basePourMax * humidityFactor)
+      };
+    }
+
+    // 切换模拟显示
+    dom.btnToggleSim.addEventListener('click', () => {
+      state.showSim = !state.showSim;
+      if (state.showSim) {
+        const p = calculatePhases();
+        document.getElementById('simPremix').textContent = `${p.premix} 秒`;
+        document.getElementById('simMix').textContent = `${p.mix} 秒`;
+        document.getElementById('simLoad').textContent = `${p.load} 秒`;
+        document.getElementById('simSet').textContent = `${p.set} 秒`;
+        document.getElementById('simPourWindow').textContent = `${p.pourWindowMin} 分钟内`;
+        dom.simCard.classList.remove('hidden');
+        dom.btnToggleSim.textContent = '流程模拟 ▲ 收起';
+      } else {
+        dom.simCard.classList.add('hidden');
+        dom.btnToggleSim.textContent = '流程模拟 ▼ 预览时长';
+      }
+    });
+
+    // 震动与语音合成 (取代 wx.vibrateLong 与 WechatSI)
+    function speak(text) {
+      if ('vibrate' in navigator) navigator.vibrate(400);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    // 运行倒计时
+    function startProcess() {
+      stopProcess();
+      const p = calculatePhases();
+      const stages = [
+        { name: '1. 混合材料', duration: p.premix, prompt: '先加水再加粉末，轻轻压拌至粉末完全浸湿，防止飞溅' },
+        { name: '2. 快速调拌', duration: p.mix, prompt: '用力顺时针刮抹碗壁，快速调拌至无颗粒糊状' },
+        { name: '3. 静置消泡', duration: p.load, prompt: '注意时间，轻拍容器让气泡排出' },
+        { name: '4. 开始倒模', duration: p.set, prompt: '倒入成型容器后插入要翻模的物体' },
+        { name: '5. 凝固完成', duration: 10, prompt: `完全凝固！受环境温度 ${state.ambientTemp}°C 与湿度 ${state.humidity}%RH 影响，请在 ${p.pourWindowMin} 分钟内完成灌模` }
+      ];
+
+      dom.timerOverlay.classList.remove('hidden');
+      let stageIdx = 0;
+
+      function runNextStage() {
+        if (stageIdx >= stages.length) {
+          stopProcess();
+          return;
+        }
+
+        const st = stages[stageIdx];
+        dom.stageName.textContent = st.name;
+        dom.timeLeft.textContent = st.duration;
+        dom.voiceTip.textContent = st.prompt;
+
+        speak(st.prompt);
+
+        let time = st.duration;
+        state.timer = setInterval(() => {
+          time--;
+          if (time >= 0) {
+            dom.timeLeft.textContent = time;
+          } else {
+            clearInterval(state.timer);
+            state.timer = null;
+            stageIdx++;
+            runNextStage();
+          }
+        }, 1000);
+      }
+
+      runNextStage();
+    }
+
+    function stopProcess() {
+      if (state.timer) {
+        clearInterval(state.timer);
+        state.timer = null;
+      }
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      dom.timerOverlay.classList.add('hidden');
+    }
+
+    dom.btnStart.addEventListener('click', startProcess);
+    dom.btnStop.addEventListener('click', stopProcess);
+
+    // 注册 Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+  </script>
+</body>
+</html>
